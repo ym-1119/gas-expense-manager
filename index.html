@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💰 My支出管理アプリ</title>
+  <style>
+    :root {
+      --primary: #4A90D9; --accent: #FF6B6B;
+      --green: #2ECC71;   --yellow: #F39C12; --purple: #9B59B6;
+      --bg: #F0F4FF; --card: #fff;
+      --text: #2D3748; --muted: #718096; --border: #E2E8F0;
+      --shadow: 0 4px 20px rgba(74,144,217,.12); --r: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; padding-bottom: 90px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #4A90D9, #667eea);
+      color: #fff; padding: 16px 18px 22px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-row { display: flex; justify-content: space-between; align-items: center; }
+    .header h1  { font-size: 20px; font-weight: 800; }
+    .header-sub { font-size: 12px; opacity: .8; margin-top: 3px; }
+    .notif-badge {
+      background: rgba(255,255,255,.25); border: 1.5px solid rgba(255,255,255,.5);
+      color: #fff; font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: 99px; cursor: pointer;
+      transition: background .2s;
+    }
+    .notif-badge:hover { background: rgba(255,255,255,.4); }
+    .notif-badge.off { background: rgba(255,100,100,.3); border-color: rgba(255,150,150,.5); }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex; background: #fff;
+      border-bottom: 2px solid var(--border);
+      position: sticky; top: 72px; z-index: 99;
+    }
+    .tab {
+      flex: 1; padding: 9px 0; text-align: center;
+      font-size: 10px; font-weight: 600; color: var(--muted);
+      cursor: pointer; border-bottom: 3px solid transparent;
+      margin-bottom: -2px; transition: all .2s;
+    }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-icon   { font-size: 19px; display: block; margin-bottom: 1px; }
+
+    /* ── Pages ── */
+    .page { display: none; padding: 14px; }
+    .page.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card); border-radius: var(--r);
+      padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 14px; font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    /* ── Forms ── */
+    .fg  { margin-bottom: 11px; }
+    .lbl { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    .inp, select, textarea {
+      width: 100%; padding: 11px 13px; border: 2px solid var(--border);
+      border-radius: 10px; font-size: 15px; font-family: inherit;
+      color: var(--text); background: #FAFBFF; outline: none;
+      -webkit-appearance: none; transition: border-color .2s;
+    }
+    .inp:focus, select:focus, textarea:focus { border-color: var(--primary); background: #fff; }
+    textarea { resize: vertical; min-height: 60px; }
+    .yen-wrap { position: relative; }
+    .yen-wrap::before { content:"¥"; position:absolute; left:13px; top:50%; transform:translateY(-50%); font-weight:700; color:var(--primary); }
+    .yen-wrap .inp { padding-left: 26px; }
+
+    /* ── Category grid ── */
+    .cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
+    .cat-btn {
+      padding: 9px 3px; border: 2px solid var(--border); border-radius: 10px;
+      background: #FAFBFF; font-size: 11px; text-align: center;
+      cursor: pointer; transition: all .2s; color: var(--text);
+    }
+    .cat-btn.selected {
+      border-color: var(--primary);
+      background: linear-gradient(135deg,#EEF4FF,#E0EAFF);
+      color: var(--primary); font-weight: 700;
+    }
+    .cat-icon { font-size: 21px; display: block; margin-bottom: 2px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: block; width: 100%; padding: 14px; border: none;
+      border-radius: 12px; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: all .2s; font-family: inherit;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg,var(--primary),#667eea);
+      color: #fff; box-shadow: 0 4px 15px rgba(74,144,217,.4);
+    }
+    .btn-primary:active { transform: scale(.98); }
+    .btn-sm { display: inline-block; width: auto; padding: 5px 11px; font-size: 12px; border-radius: 7px; }
+    .btn-danger { background: var(--accent); color: #fff; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(16px);
+      background: #2D3748; color: #fff; padding: 11px 22px; border-radius: 30px;
+      font-size: 13px; font-weight: 600; opacity: 0; z-index: 999;
+      transition: all .3s; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,.25);
+    }
+    .toast.show  { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.warn  { background: var(--yellow); }
+    .toast.error { background: var(--accent); }
+
+    /* ── Summary cards ── */
+    .sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .sc {
+      border-radius: 14px; padding: 14px; color: #fff; box-shadow: var(--shadow);
+    }
+    .sc.total  { background: linear-gradient(135deg,var(--primary),#667eea); grid-column:1/-1; }
+    .sc.cnt    { background: linear-gradient(135deg,var(--green),#27ae60); }
+    .sc.avg    { background: linear-gradient(135deg,var(--yellow),#e67e22); }
+    .sc-lbl    { font-size: 11px; opacity: .85; margin-bottom: 3px; }
+    .sc-val    { font-size: 24px; font-weight: 800; }
+
+    /* ── Month nav ── */
+    .mnav { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+    .mnav button {
+      width: 33px; height: 33px; border: 2px solid var(--border);
+      border-radius: 50%; background: #fff; font-size: 16px;
+      cursor: pointer; display:flex; align-items:center; justify-content:center;
+      transition: all .2s;
+    }
+    .mnav button:hover { border-color: var(--primary); color: var(--primary); }
+    .mlabel { flex:1; text-align:center; font-size:16px; font-weight:700; }
+
+    /* ── Expense list ── */
+    .exp-item { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--border); }
+    .exp-item:last-child { border-bottom: none; }
+    .exp-ico { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0; }
+    .exp-inf { flex:1; min-width:0; }
+    .exp-cat { font-size:13px; font-weight:700; }
+    .exp-sub { font-size:11px; color:var(--muted); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .exp-rgt { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+    .exp-amt { font-size:15px; font-weight:800; color:var(--accent); white-space:nowrap; }
+
+    /* ── Category bar ── */
+    .cbar { margin-bottom:13px; }
+    .cbar-h { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
+    .cbar-n { font-weight:600; }
+    .cbar-a { color:var(--accent); font-weight:700; }
+    .bar-bg { background:var(--border); border-radius:99px; height:7px; }
+    .bar-fg { height:7px; border-radius:99px; transition:width .8s ease; }
+
+    /* ── Budget bar ── */
+    .budg-item { margin-bottom: 15px; }
+    .budg-h { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:5px; }
+    .budg-name { font-weight:700; }
+    .budg-pct { font-size:12px; font-weight:700; }
+    .budg-pct.ok   { color:var(--green); }
+    .budg-pct.warn { color:var(--yellow); }
+    .budg-pct.ng   { color:var(--accent); }
+    .budg-bar-bg { background:var(--border); border-radius:99px; height:10px; overflow:hidden; }
+    .budg-bar-fg { height:10px; border-radius:99px; transition:width .8s ease; }
+    .budg-bar-fg.ok   { background:linear-gradient(90deg,#68D391,#38A169); }
+    .budg-bar-fg.warn { background:linear-gradient(90deg,#F6E05E,#D69E2E); }
+    .budg-bar-fg.ng   { background:linear-gradient(90deg,#FC8181,#E53E3E); }
+    .budg-sub { font-size:11px; color:var(--muted); margin-top:3px; }
+    .over-tag {
+      display:inline-block; background:#FFF5F5; color:#E53E3E;
+      font-size:10px; font-weight:700; padding:1px 7px; border-radius:99px;
+      border:1px solid #FEB2B2; margin-left:5px;
+    }
+
+    /* ── Settings page ── */
+    .setting-row { display:flex; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid var(--border); }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-lbl { flex:1; font-size:14px; font-weight:600; }
+    .toggle-wrap { position:relative; width:52px; height:28px; }
+    .toggle-wrap input { opacity:0; width:0; height:0; }
+    .slider {
+      position:absolute; inset:0; background:#ccc; border-radius:99px;
+      cursor:pointer; transition:.3s;
+    }
+    .slider::before {
+      content:""; position:absolute; width:22px; height:22px;
+      left:3px; top:3px; background:#fff; border-radius:50%;
+      transition:.3s; box-shadow:0 1px 4px rgba(0,0,0,.2);
+    }
+    input:checked + .slider { background:var(--primary); }
+    input:checked + .slider::before { transform:translateX(24px); }
+
+    /* ── Misc ── */
+    .loading { display:flex; justify-content:center; padding:30px; }
+    .spin { width:30px; height:30px; border:3px solid var(--border); border-top-color:var(--primary); border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty { text-align:center; color:var(--muted); padding:36px 16px; font-size:13px; }
+    .empty-ico { font-size:44px; margin-bottom:8px; }
+    .info-box {
+      background:linear-gradient(135deg,#EEF4FF,#E8F4FF);
+      border:1.5px solid #bee3f8; border-radius:12px;
+      padding:13px; margin-bottom:13px; font-size:13px; line-height:1.6;
+      color:#2c5282;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-row">
+    <h1>💰 My支出管理アプリ</h1>
+    <div class="notif-badge" id="notifBadge" onclick="toggleNotify()">🔔 通知ON</div>
+  </div>
+  <div class="header-sub" id="headerSub">読み込み中...</div>
+</div>
+
+<!-- ── Tabs ── -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('add',this)">
+    <span class="tab-icon">➕</span>記録
+  </div>
+  <div class="tab" onclick="switchTab('list',this)">
+    <span class="tab-icon">📋</span>一覧
+  </div>
+  <div class="tab" onclick="switchTab('report',this)">
+    <span class="tab-icon">📊</span>レポート
+  </div>
+  <div class="tab" onclick="switchTab('setting',this)">
+    <span class="tab-icon">⚙️</span>設定
+  </div>
+</div>
+
+<!-- ====== 記録タブ ====== -->
+<div id="tab-add" class="page active">
+  <div class="card">
+    <div class="card-title">📅 日付</div>
+    <div class="fg"><input type="date" id="expDate" class="inp"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">📂 カテゴリ</div>
+    <div class="cat-grid" id="catGrid"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">💴 金額・メモ</div>
+    <div class="fg">
+      <label class="lbl">金額（円）</label>
+      <div class="yen-wrap"><input type="number" id="expAmount" class="inp" placeholder="0" min="0"></div>
+    </div>
+    <div class="fg">
+      <label class="lbl">メモ（任意）</label>
+      <textarea id="expMemo" placeholder="お店・用途など"></textarea>
+    </div>
+    <button class="btn btn-primary" id="saveBtn" onclick="saveExp()">✅ 記録する</button>
+  </div>
+</div>
+
+<!-- ====== 一覧タブ ====== -->
+<div id="tab-list" class="page">
+  <div class="mnav">
+    <button onclick="chMonth(-1)">‹</button>
+    <div class="mlabel" id="listML">—</div>
+    <button onclick="chMonth(1)">›</button>
+  </div>
+  <div class="card">
+    <div class="card-title">💸 支出一覧</div>
+    <div id="expList"><div class="loading"><div class="spin"></div></div></div>
+  </div>
+</div>
+
+<!-- ====== レポートタブ ====== -->
+<div id="tab-report" class="page">
+  <div class="mnav">
+    <button onclick="chMonth(-1)">‹</button>
+    <div class="mlabel" id="reportML">—</div>
+    <button onclick="chMonth(1)">›</button>
+  </div>
+  <div class="sc-grid">
+    <div class="sc total"><div class="sc-lbl">💰 今月の支出合計</div><div class="sc-val" id="scTotal">—</div></div>
+    <div class="sc cnt"> <div class="sc-lbl">📋 件数</div>             <div class="sc-val" id="scCnt">—</div></div>
+    <div class="sc avg"> <div class="sc-lbl">📊 1件平均</div>          <div class="sc-val" id="scAvg">—</div></div>
+  </div>
+
+  <!-- 予算進捗 -->
+  <div class="card" id="budgetCard">
+    <div class="card-title">🎯 月予算に対する進捗</div>
+    <div id="budgetProgress"></div>
+  </div>
+
+  <!-- カテゴリ別 -->
+  <div class="card">
+    <div class="card-title">📂 カテゴリ別内訳</div>
+    <div id="catReport"><div class="loading"><div class="spin"></div></div></div>
+  </div>
+</div>
+
+<!-- ====== 設定タブ ====== -->
+<div id="tab-setting" class="page">
+  <div class="info-box">
+    ⚙️ 設定はスプレッドシートの <strong>「設定」シート</strong> に保存されます。
+  </div>
+  <div class="card">
+    <div class="card-title">🎯 月予算</div>
+    <div class="fg">
+      <label class="lbl">全カテゴリ合計の月予算（円）</label>
+      <div class="yen-wrap"><input type="number" id="budgetInput" class="inp" placeholder="30000" min="0" step="1000"></div>
+    </div>
+    <div class="setting-row" style="border:none;padding-top:0;">
+      <div class="setting-lbl">🔔 予算超過通知（LINE & Gmail）</div>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="notifyToggle" onchange="onToggleChange()">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <button class="btn btn-primary" onclick="saveSetting()">💾 設定を保存</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📡 LINE Notify 設定</div>
+    <div class="info-box" style="margin-bottom:0;">
+      LINE Notify トークンは <strong>Code.gs の <code>LINE_TOKEN</code></strong> に直接設定してください。<br><br>
+      取得先: <strong>https://notify-bot.line.me/ja/</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🧪 通知テスト</div>
+    <button class="btn btn-primary" onclick="runTest()" id="testBtn">📨 LINE & Gmail にテスト送信</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let ym         = '';   // "yyyy-MM"
+  let selCat     = '';
+  let categories = [];
+  let config     = { budget: 30000, notify: "ON" };
+  let activeTab  = 'add';
+
+  // ── 初期化 ──
+  window.onload = function() {
+    const now = new Date();
+    ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const dateInput = document.getElementById('expDate');
+    if (dateInput) dateInput.value = now.toISOString().split('T')[0];
+    updateMLs();
+    loadInit();
+  };
+
+  function loadInit() {
+    google.script.run
+      .withSuccessHandler(cats => {
+        categories = cats;
+        renderCatGrid();
+      }).getCategories();
+
+    google.script.run
+      .withSuccessHandler(cfg => {
+        config = cfg;
+        applyConfig();
+      }).getConfig();
+  }
+
+  function applyConfig() {
+    document.getElementById('budgetInput').value   = config.budget;
+    document.getElementById('notifyToggle').checked = config.notify === "ON";
+    updateNotifBadge();
+    updateHeaderSub();
+  }
+
+  function updateNotifBadge() {
+    const el = document.getElementById('notifBadge');
+    if (config.notify === "ON") {
+      el.textContent = "🔔 通知ON"; el.classList.remove('off');
+    } else {
+      el.textContent = "🔕 通知OFF"; el.classList.add('off');
+    }
+  }
+
+  function updateHeaderSub() {
+    const [y,m] = ym.split('-');
+    document.getElementById('headerSub').textContent =
+      `${y}年${Number(m)}月  月予算: ¥${Number(config.budget).toLocaleString()}`;
+  }
+
+  // ── タブ切り替え ──
+  function switchTab(name, el) {
+    activeTab = name;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-'+name).classList.add('active');
+    el.classList.add('active');
+    if (name === 'list')    loadList();
+    if (name === 'report')  loadReport();
+    if (name === 'setting') applyConfig();
+  }
+
+  // ── 月移動 ──
+  function chMonth(d) {
+    const [y,m] = ym.split('-').map(Number);
+    const nd = new Date(y, m-1+d, 1);
+    ym = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+    updateMLs();
+    if (activeTab === 'list')   loadList();
+    if (activeTab === 'report') loadReport();
+  }
+
+  function updateMLs() {
+    const [y,m] = ym.split('-');
+    const lbl = `${y}年${Number(m)}月`;
+    ['list','report'].forEach(id => {
+      const el = document.getElementById(id+'ML');
+      if (el) el.textContent = lbl;
+    });
+    updateHeaderSub();
+  }
+
+  // ── カテゴリグリッド ──
+  function renderCatGrid() {
+    const grid = document.getElementById('catGrid');
+    grid.innerHTML = '';
+    categories.forEach(cat => {
+      const [icon, ...rest] = cat.split(' ');
+      const btn = document.createElement('div');
+      btn.className = 'cat-btn';
+      btn.innerHTML = `<span class="cat-icon">${icon}</span>${rest.join(' ')}`;
+      btn.onclick = () => { selCat = cat; document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected')); btn.classList.add('selected'); };
+      grid.appendChild(btn);
+    });
+  }
+
+  // ── 記録する ──
+  function saveExp() {
+    const date   = document.getElementById('expDate').value;
+    const amount = document.getElementById('expAmount').value;
+    const memo   = document.getElementById('expMemo').value;
+    if (!date)          { toast('⚠️ 日付を入力してください','error'); return; }
+    if (!selCat)        { toast('⚠️ カテゴリを選択してください','error'); return; }
+    if (!amount||+amount<=0) { toast('⚠️ 金額を入力してください','error'); return; }
+
+    const btn = document.getElementById('saveBtn');
+    btn.textContent = '⏳ 記録中...'; btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(res => {
+        btn.textContent = '✅ 記録する'; btn.disabled = false;
+        if (!res.success) { toast('❌ '+res.message,'error'); return; }
+        document.getElementById('expAmount').value = '';
+        document.getElementById('expMemo').value   = '';
+        document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected'));
+        selCat = '';
+        if (res.notification?.notified) toast('🚨 予算超過！LINE & Gmail に通知しました','warn');
+        else toast('✅ 記録しました！');
+      })
+      .withFailureHandler(() => { btn.textContent='✅ 記録する'; btn.disabled=false; toast('❌ エラーが発生しました','error'); })
+      .saveExpence({ date, category: selCat, amount, memo });
+  }
+
+  // ── 一覧 ──
+  function loadList() {
+    // 1. もし ym が空なら、現在の年月をその場で作る
+    if (!ym) {
+      const now = new Date();
+      ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    console.log("GASへ送信する年月:", ym);
+
+    // 2. 画面を読み込み中表示にする
+    document.getElementById('expList').innerHTML =
+      '<div class="loading"><div class="spin"></div></div>';
+
+    // 3. GAS呼び出し（引数を {ym: ym} というオブジェクトで直接記述）
+    google.script.run
+      .withSuccessHandler(function(list) {
+        const parsed = JSON.parse(list);
+        console.log("受け取ったデータ:", parsed);
+        renderList(parsed);
+      })
+      .withFailureHandler(function(err) {
+        console.error("GAS実行エラー:", err);
+        document.getElementById('expList').innerHTML =
+          '<div class="empty">データの取得に失敗しました</div>';
+      })
+      .getExpensesWrapped({ ym: String(ym) }); // Stringで型を固定して確実に渡す
+  }
+
+  const COLORS = ['#FF6B6B','#4A90D9','#2ECC71','#F39C12','#9B59B6','#1ABC9C','#E74C3C','#3498DB','#27AE60','#D35400','#8E44AD','#7F8C8D'];
+  function catColor(cat) { return COLORS[(categories.indexOf(cat)+100)%COLORS.length]; }
+  function catIcon(cat)  { return cat ? cat.split(' ')[0] : '❓'; }
+
+  function renderList(list) {
+    const el = document.getElementById('expList');
+    if (!list || !list.length) { el.innerHTML='<div class="empty"><div class="empty-ico">🗂️</div>この月の支出はありません</div>'; return; }
+    el.innerHTML = list.map(e => `
+      <div class="exp-item">
+        <div class="exp-ico" style="background:${catColor(e.category)}22;">${catIcon(e.category)}</div>
+        <div class="exp-inf">
+          <div class="exp-cat">${e.category}</div>
+          <div class="exp-sub">${e.date}${e.memo?' · '+e.memo:''}</div>
+        </div>
+        <div class="exp-rgt">
+          <div class="exp-amt">¥${Number(e.amount).toLocaleString()}</div>
+          <button class="btn btn-sm btn-danger"
+            onclick='delExp(${JSON.stringify({date:e.date,category:e.category,amount:e.amount})})'>削除</button>
+        </div>
+      </div>`).join('');
+  }
+
+  function delExp(key) {
+    if (!confirm('この記録を削除しますか？')) return;
+    google.script.run
+      .withSuccessHandler(r => { if(r.success){toast('🗑️ 削除しました');loadList();}else toast('❌ '+r.message,'error'); })
+      .deleteExpense(key);
+  }
+
+  // ── レポート ──
+  function loadReport() {
+    const now = new Date();
+    const currentYm = ym || (now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'));
+    document.getElementById('scTotal').textContent = '...';
+    document.getElementById('catReport').innerHTML = '<div class="loading"><div class="spin"></div></div>';
+    google.script.run.withSuccessHandler(function(s) {
+      renderReport(JSON.parse(s));
+    })
+    .getMonthlySummaryWrapped({ ym: currentYm });
+  }
+
+  function renderReport(s) {
+    document.getElementById('scTotal').textContent = '¥'+s.total.toLocaleString();
+    document.getElementById('scCnt').textContent   = s.count+'件';
+    document.getElementById('scAvg').textContent   = s.count ? '¥'+Math.round(s.total/s.count).toLocaleString() : '¥0';
+
+    // 予算進捗（月予算全体に対して）
+    const pct    = config.budget>0 ? Math.min(Math.round(s.total/config.budget*100),100) : 0;
+    const over   = s.total > config.budget;
+    const cls    = pct>=100?'ng':pct>=80?'warn':'ok';
+    document.getElementById('budgetProgress').innerHTML = `
+      <div class="budg-item" style="margin-bottom:0;">
+        <div class="budg-h">
+          <span class="budg-name">今月の合計</span>
+          <span class="budg-pct ${cls}">
+            ${Math.round(s.total/config.budget*100)}%
+            ${over?`<span class="over-tag">超過 ¥${(s.total-config.budget).toLocaleString()}</span>`:''}
+          </span>
+        </div>
+        <div class="budg-bar-bg">
+          <div class="budg-bar-fg ${cls}" style="width:${pct}%;"></div>
+        </div>
+        <div class="budg-sub">¥${s.total.toLocaleString()} / 予算 ¥${Number(config.budget).toLocaleString()}</div>
+      </div>`;
+
+    // カテゴリ別
+    const maxAmt = s.categoryList[0]?.amount || 1;
+    document.getElementById('catReport').innerHTML = s.categoryList.length
+      ? s.categoryList.map(c=>`
+        <div class="cbar">
+          <div class="cbar-h"><span class="cbar-n">${c.category}</span><span class="cbar-a">¥${c.amount.toLocaleString()}</span></div>
+          <div class="bar-bg"><div class="bar-fg" style="width:${Math.round(c.amount/maxAmt*100)}%;background:${catColor(c.category)};"></div></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${Math.round(c.amount/s.total*100)}%</div>
+        </div>`).join('')
+      : '<div class="empty"><div class="empty-ico">📊</div>データがありません</div>';
+  }
+
+  // ── 設定保存 ──
+  function saveSetting() {
+    const budget = document.getElementById('budgetInput').value;
+    const notify = document.getElementById('notifyToggle').checked ? "ON" : "OFF";
+    google.script.run
+      .withSuccessHandler(r => {
+        if (r.success) {
+          config.budget = Number(budget); config.notify = notify;
+          updateNotifBadge(); updateHeaderSub();
+          toast('💾 設定を保存しました！');
+        } else toast('❌ 保存に失敗しました','error');
+      })
+      .saveConfig(budget, notify);
+  }
+
+  function toggleNotify() {
+    const next = config.notify === "ON" ? "OFF" : "ON";
+    google.script.run
+      .withSuccessHandler(r => {
+        if (r.success) {
+          config.notify = next;
+          document.getElementById('notifyToggle').checked = next === "ON";
+          updateNotifBadge();
+          toast(next==="ON" ? "🔔 通知をONにしました" : "🔕 通知をOFFにしました");
+        }
+      })
+      .saveConfig(config.budget, next);
+  }
+
+  function onToggleChange() {
+    // トグル操作時はすぐには保存しない（「設定を保存」ボタンで確定）
+  }
+
+  // ── 通知テスト ──
+  function runTest() {
+    const btn = document.getElementById('testBtn');
+    btn.textContent = '⏳ 送信中...'; btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(() => { btn.textContent='📨 LINE & Gmail にテスト送信'; btn.disabled=false; toast('📨 テスト通知を送信しました！'); })
+      .withFailureHandler(() => { btn.textContent='📨 LINE & Gmail にテスト送信'; btn.disabled=false; toast('❌ 送信に失敗しました','error'); })
+      .testNotification();
+  }
+
+  // ── Toast ──
+  let toastTimer;
+  function toast(msg, type='') {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.className = 'toast show '+(type||'');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+  }
+</script>
+</body>
+</html>
